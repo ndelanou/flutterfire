@@ -276,6 +276,9 @@ NSString *const kMessagingPresentationOptionsUserDefaults =
     [self initialNotificationCallback];
   }
 
+#if TARGET_OS_OSX
+  // On macOS, use GULAppDelegateSwizzler to intercept AppDelegate methods since
+  // Flutter's registrar-based delegation is not available.
   [GULAppDelegateSwizzler registerAppDelegateInterceptor:self];
   [GULAppDelegateSwizzler proxyOriginalDelegateIncludingAPNSMethods];
 
@@ -294,11 +297,12 @@ NSString *const kMessagingPresentationOptionsUserDefaults =
                     didReceiveRemoteNotificationWithCompletionSEL,
                     method_getImplementation(donorMethod), method_getTypeEncoding(donorMethod));
   }
-#if !TARGET_OS_OSX
-  // `[_registrar addApplicationDelegate:self];` alone doesn't work for notifications to be received
-  // without the above swizzling This commit:
-  // https://github.com/google/GoogleUtilities/pull/162/files#diff-6bb6d1c46632fc66405a524071cc4baca5fc6a1a6c0eefef81d8c3e2c89cbc13L520-L533
-  // broke notifications which was released with firebase-ios-sdk v11.0.0
+#else
+  // On iOS, rely solely on Flutter's registrar-based delegation mechanism.
+  // Using GULAppDelegateSwizzler on iOS conflicts with Flutter's own delegate chain
+  // and prevents data-only (silent) push notifications from reaching
+  // application:didReceiveRemoteNotification:fetchCompletionHandler: in the background.
+  // See: https://github.com/firebase/flutterfire/issues/17206
   [_registrar addApplicationDelegate:self];
 #endif
 
